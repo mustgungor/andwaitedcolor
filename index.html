@@ -131,6 +131,7 @@ footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);display
   --line-strong:#c8c8c2;
   --radius:18px;
   --shadow:0 1px 2px rgba(0,0,0,.03),0 8px 24px rgba(0,0,0,.035);
+  --ease-out:cubic-bezier(.23,1,.32,1);
 }
 body{line-height:1.4}
 .wrap{max-width:1440px;padding:0 28px 48px}
@@ -148,6 +149,12 @@ h1{font-size:clamp(38px,5vw,66px);line-height:1;letter-spacing:-.05em;text-trans
 .search kbd{top:11px;background:transparent;border:0}
 .control{border-radius:13px;padding:0 14px}
 .control:active,.small-btn:active,.star:active,.selection button:active{transform:scale(.97)}
+.random{position:relative;overflow:hidden;justify-content:center;min-width:116px}
+.random .surprise-label,.random .surprise-charm{transition:opacity 140ms var(--ease-out),transform 140ms var(--ease-out)}
+.random .surprise-label{opacity:1;transform:scale(1)}
+.random .surprise-charm{position:absolute;left:50%;top:50%;width:30px;height:30px;opacity:0;background:url('./charm-sprite.png') no-repeat;background-size:400% 200%;background-position:var(--charm-x,0%) var(--charm-y,0%);transform:translate(-50%,-50%) scale(.92) rotate(-8deg)}
+.random.is-charming .surprise-label{opacity:0;transform:scale(.96)}
+.random.is-charming .surprise-charm{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}
 .options{position:relative}
 .options summary{list-style:none}
 .options summary::-webkit-details-marker{display:none}
@@ -173,11 +180,17 @@ footer{margin-top:38px}
   .wrap{padding:0 14px 36px}.hero{padding:22px 0 18px}.hero-top{margin-bottom:14px}
   h1{font-size:42px}.sub{font-size:14px}
   .toolbar-shell{margin:0 -14px;padding:8px 14px;padding-top:calc(8px + env(safe-area-inset-top))}
-  .toolbar{grid-template-columns:minmax(0,1fr) auto}.search{grid-column:1/-1}.search input{font-size:16px}
-  .toolbar .control{width:auto;font-size:13px}.family-select{width:100%!important}
+  .toolbar{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:'search search' 'family options' 'random random'}
+  .search{grid-area:search}.search input{font-size:16px}
+  .toolbar .control{width:auto;font-size:13px}.family-select{grid-area:family;width:100%!important}.options{grid-area:options}
+  .toolbar .random{display:inline-flex;grid-area:random;width:100%;justify-content:center}
   .options-panel{position:fixed;left:14px;right:14px;top:auto;width:auto;margin-top:6px}
   .grid{grid-template-columns:1fr}.swatches{height:136px}
   .meta-row{padding-top:16px}.hint{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .random .surprise-label{transition:opacity 120ms var(--ease-out)!important;transform:none!important}
+  .random .surprise-charm{transition:opacity 120ms var(--ease-out)!important;transform:translate(-50%,-50%)!important}
 }
 </style>
 </head>
@@ -200,7 +213,7 @@ footer{margin-top:38px}
         <kbd>/</kbd>
       </label>
       <select id="families" class="control family-select" aria-label="Color family"></select>
-      <button id="randomBtn" type="button" class="control random">Surprise me</button>
+      <button id="randomBtn" type="button" class="control random"><span class="surprise-label">Surprise me</span><span id="surpriseCharm" class="surprise-charm" aria-hidden="true"></span></button>
       <details class="options">
         <summary class="control">Options</summary>
         <div class="options-panel">
@@ -258,6 +271,7 @@ const countEl=document.getElementById('visibleCount');
 const emptyEl=document.getElementById('empty');
 const ratioToggle=document.getElementById('ratioToggle');
 const randomBtn=document.getElementById('randomBtn');
+const surpriseCharm=document.getElementById('surpriseCharm');
 const copyFormat=document.getElementById('copyFormat');
 const toast=document.getElementById('toast');
 const selectionBar=document.getElementById('selection');
@@ -279,6 +293,9 @@ try{favorites=new Set(JSON.parse(localStorage.getItem('andwaited-favorites')||'[
 let toastTimer;
 let lastRandomId=null;
 let randomPaletteId=null;
+let charmTimer;
+let lastCharmIndex=-1;
+const charms=[['0%','0%'],['33.333%','0%'],['66.667%','0%'],['100%','0%'],['0%','100%'],['33.333%','100%'],['66.667%','100%'],['100%','100%']];
 
 function luminance(hex){
   const rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4));
@@ -336,6 +353,15 @@ async function copyText(text,label='Copied'){
 function showToast(msg){
   clearTimeout(toastTimer);toast.textContent=msg;toast.classList.add('show');
   toastTimer=setTimeout(()=>toast.classList.remove('show'),1500);
+}
+function playCharm(){
+  clearTimeout(charmTimer);
+  const next=(lastCharmIndex+1+Math.floor(Math.random()*(charms.length-1)))%charms.length;
+  lastCharmIndex=next;
+  surpriseCharm.style.setProperty('--charm-x',charms[next][0]);
+  surpriseCharm.style.setProperty('--charm-y',charms[next][1]);
+  randomBtn.classList.add('is-charming');
+  charmTimer=setTimeout(()=>randomBtn.classList.remove('is-charming'),520);
 }
 function paletteText(p){
   const fmt=copyFormat.value;
@@ -417,6 +443,7 @@ randomBtn.addEventListener('click',()=>{
   const choices=PALETTES.filter(p=>p.id!==lastRandomId);
   const p=choices[Math.floor(Math.random()*choices.length)];
   lastRandomId=p.id;
+  playCharm();
   randomPaletteId=p.id;activeFamily='All';selectedOnly=false;search.value='';renderFamilies();render();
   requestAnimationFrame(()=>grid.querySelector('.card')?.scrollIntoView({behavior:'smooth',block:'center'}));
 });
